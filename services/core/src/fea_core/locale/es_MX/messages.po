@@ -11,3 +11,15 @@ msgstr "Necesitas iniciar sesión."
 
 msgid "error.stale_revision"
 msgstr "El gasto cambió mientras lo editabas. Revisa la versión actual."
+
+msgid "error.validation_error"
+msgstr "La solicitud no es válida."
+
+msgid "error.not_found"
+msgstr "No encontramos lo que buscas."
+
+msgid "error.auth_unavailable"
+msgstr "No pudimos verificar tu sesión. Inténtalo de nuevo en un momento."
+
+msgid "error.http_error"
+msgstr "No pudimos procesar la solicitud."
