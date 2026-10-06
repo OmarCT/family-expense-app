@@ -1,0 +1,49 @@
+name: ci
+on:
+  pull_request:
+  push: { branches: [main] }
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    strategy: { matrix: { service: [core, workers] } }
+    defaults: { run: { working-directory: "services/${{ matrix.service }}" } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pipx install poetry
+      - run: poetry install
+      - run: poetry check --lock
+      - run: poetry run ruff check .
+      - run: poetry run mypy .
+      - run: poetry run pytest
+  typescript:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r lint
+      - run: pnpm -r typecheck
+      - run: pnpm -r test
+  vectors:
+    name: shared money vectors (Python + TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pipx install poetry
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: cd services/core && poetry install && poetry run pytest -m vectors
+      - run: pnpm --filter @fea/domain test:vectors
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npx --yes @redocly/cli lint contracts/openapi.yaml

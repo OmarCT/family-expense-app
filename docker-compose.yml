@@ -1,0 +1,18 @@
+services:
+  core-db:
+    image: postgres:16
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: core }
+    ports: ["5432:5432"]
+    volumes: [core-data:/var/lib/postgresql/data]
+  analytics-db:
+    image: postgres:16
+    environment: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: analytics }
+    ports: ["5433:5432"]
+    volumes: [analytics-data:/var/lib/postgresql/data]
+  localstack:
+    image: localstack/localstack:3
+    environment: { SERVICES: "sqs,sns,s3,secretsmanager" }
+    ports: ["4566:4566"]
+volumes:
+  core-data:
+  analytics-data:

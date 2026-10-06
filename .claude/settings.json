@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(poetry install:*)", "Bash(poetry run:*)", "Bash(poetry lock:*)", "Bash(poetry check:*)",
+      "Bash(pnpm install:*)", "Bash(pnpm -r:*)", "Bash(pnpm --filter:*)", "Bash(pnpm test:*)",
+      "Bash(make:*)", "Bash(docker compose:*)", "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)"
+    ],
+    "deny": [
+      "Read(./.env)", "Read(./.env.*)", "Edit(./.env)", "Edit(./.env.*)",
+      "Bash(git push --force:*)", "Bash(terraform apply:*)", "Bash(terraform destroy:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Edit|Write", "hooks": [ { "type": "command", "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_files.py\"" } ] }
+    ]
+  }
+}

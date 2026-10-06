@@ -1,0 +1,67 @@
+openapi: 3.1.0
+info:
+  title: Family Expense API
+  version: 1.0.0
+servers:
+  - url: /v1
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { type: object, required: [status], properties: { status: { type: string, enum: [ok] } } }
+  /me:
+    get:
+      operationId: getMe
+      responses:
+        "200":
+          description: Usuario autenticado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Me" }
+        "401": { $ref: "#/components/responses/Error" }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      schema: { type: string, format: uuid }
+  schemas:
+    Me:
+      type: object
+      required: [id, locale]
+      properties:
+        id: { type: string, format: uuid }
+        locale: { type: string, example: es-MX }
+    Money:
+      type: object
+      required: [centavos, currency]
+      properties:
+        centavos: { type: integer, description: "Entero en centavos; nunca decimales" }
+        currency: { type: string, minLength: 3, maxLength: 3, example: MXN }
+    Error:
+      type: object
+      required: [code, message, correlation_id]
+      properties:
+        code: { type: string, example: stale_revision }
+        message: { type: string }
+        correlation_id: { type: string }
+        current_revision: { type: integer, description: "Presente en 409 por revisión desactualizada" }
+  responses:
+    Error:
+      description: Error con formato único
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+# Convenciones para endpoints de escritura (Slice 1):
+#  - client_id (uuid) obligatorio como clave de idempotencia
+#  - base_revision obligatorio en ediciones; 409 con current_revision si está desactualizada

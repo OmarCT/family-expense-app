@@ -1,0 +1,55 @@
+[project]
+name = "fea-core"
+version = "0.1.0"
+description = "API, ledger y reglas de dinero (FastAPI + PostgreSQL + RLS)"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "structlog>=24.4",
+    "opentelemetry-api>=1.27",
+    "opentelemetry-sdk>=1.27",
+    "boto3>=1.35",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "alembic>=1.13",
+    "pyjwt[crypto]>=2.9",
+    "httpx>=0.27",
+]
+
+[tool.poetry]
+packages = [{ include = "fea_core", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3"
+pytest-asyncio = "^0.24"
+hypothesis = "^6.112"
+httpx = "^0.27"
+ruff = "^0.6"
+mypy = "^1.11"
+boto3-stubs = { extras = ["sqs", "s3", "sns"], version = "^1.35" }
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "SIM", "RUF"]
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+plugins = ["pydantic.mypy"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = ["vectors: pruebas de vectores compartidos de dinero", "integration: requieren PostgreSQL/LocalStack"]

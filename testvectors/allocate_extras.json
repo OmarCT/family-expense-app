@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "rule": "allocate_extras",
+  "cases": [
+    { "id": "tip-proportional", "input": { "items": { "i1": 1000, "i2": 3000 }, "extra": 400 }, "expected": { "i1": 100, "i2": 300 } }
+  ]
+}
