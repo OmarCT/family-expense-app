@@ -19,3 +19,7 @@ android/
 coverage/
 .DS_Store
 .claude/settings.local.json
+
+# Terraform: valores locales, nunca versionados
+*.tfvars
+!*.tfvars.example

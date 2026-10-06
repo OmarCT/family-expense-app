@@ -75,3 +75,14 @@ jobs:
       - run: poetry run alembic upgrade head
       - run: poetry run alembic downgrade base
       - run: poetry run alembic upgrade head
+  terraform:
+    runs-on: ubuntu-latest
+    strategy: { matrix: { env: [staging, prod] } }
+    defaults: { run: { working-directory: "infra/envs/${{ matrix.env }}" } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.9.8" }
+      - run: terraform fmt -check -recursive ../..
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
