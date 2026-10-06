@@ -3,13 +3,13 @@
 Marca cada punto solo cuando sus pruebas pasan en CI. Plan detallado: `docs/specs/implementation-plan.md`.
 
 ## Slice 0 — Foundations (S) ← activo
-- [ ] Monorepo, pnpm workspaces, Poetry en `services/core` y `services/workers`
+- [x] Monorepo, pnpm workspaces, Poetry en `services/core` y `services/workers`
 - [ ] CI: lint, tipos, tests en ambos lenguajes, contrato, vectores compartidos, imágenes en merge
 - [ ] Entornos local / staging / prod en Terraform
 - [ ] Auth0: tenant dev y prod (email code, Google, Apple)
 - [ ] OpenAPI `/v1`: error único, client ID, revisión base; cliente TS generado
 - [ ] i18n con claves, `es-MX`
-- [ ] Alembic + sobre de evento con `schema_version`
+- [x] Alembic + sobre de evento con `schema_version`
 - [ ] Observabilidad base (logs estructurados, OTel, sin PII)
 - **Salida:** usuario firmado llama `/v1` desde ambos shells; deploy a staging por CI; un vector incorrecto rompe el build
 
