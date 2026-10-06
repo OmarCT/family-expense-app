@@ -1,2 +1,3 @@
-// Sustituto temporal hasta elegir el framework de i18n: devuelve la clave tal cual.
-export const t = (key: string): string => key;
+import { createI18n } from "@fea/i18n";
+
+export const i18n = createI18n();

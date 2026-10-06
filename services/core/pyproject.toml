@@ -17,6 +17,7 @@ dependencies = [
     "alembic>=1.13",
     "pyjwt[crypto]>=2.9",
     "httpx>=0.27",
+    "babel (>=2.16)",
 ]
 
 [tool.poetry]

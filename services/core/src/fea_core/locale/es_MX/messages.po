@@ -1,0 +1,13 @@
+msgid ""
+msgstr ""
+"Language: es_MX\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+
+msgid "app.title"
+msgstr "Family Expense"
+
+msgid "error.unauthorized"
+msgstr "Necesitas iniciar sesión."
+
+msgid "error.stale_revision"
+msgstr "El gasto cambió mientras lo editabas. Revisa la versión actual."
