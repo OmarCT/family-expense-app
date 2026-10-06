@@ -10,6 +10,7 @@ paths:
   /health:
     get:
       operationId: getHealth
+      summary: Estado del servicio
       security: []
       responses:
         "200":
@@ -20,6 +21,7 @@ paths:
   /me:
     get:
       operationId: getMe
+      summary: Usuario autenticado
       responses:
         "200":
           description: Usuario autenticado
@@ -42,6 +44,14 @@ components:
       properties:
         id: { type: string, format: uuid }
         locale: { type: string, example: es-MX }
+    ClientId:
+      type: string
+      format: uuid
+      description: "Generado por el cliente en cada escritura; es la clave de idempotencia. Un reintento devuelve el resultado original."
+    BaseRevision:
+      type: integer
+      minimum: 1
+      description: "Revisión sobre la que se basa una edición. Si está desactualizada la respuesta es 409 con current_revision."
     Money:
       type: object
       required: [centavos, currency]
@@ -62,6 +72,8 @@ components:
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
-# Convenciones para endpoints de escritura (Slice 1):
-#  - client_id (uuid) obligatorio como clave de idempotencia
-#  - base_revision obligatorio en ediciones; 409 con current_revision si está desactualizada
+    StaleRevision:
+      description: La revisión base está desactualizada; el cuerpo trae current_revision
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }

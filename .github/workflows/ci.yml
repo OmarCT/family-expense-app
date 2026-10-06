@@ -47,3 +47,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npx --yes @redocly/cli lint contracts/openapi.yaml
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @fea/sync-client generate:api
+      - name: El cliente generado coincide con el contrato
+        run: git diff --exit-code packages/sync-client/src/generated
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: app, POSTGRES_PASSWORD: app, POSTGRES_DB: core }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      CORE_DATABASE_URL: postgresql+psycopg://app:app@localhost:5432/core
+    defaults: { run: { working-directory: services/core } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pipx install poetry
+      - run: poetry install
+      - run: poetry run alembic upgrade head
+      - run: poetry run alembic downgrade base
+      - run: poetry run alembic upgrade head
