@@ -23,3 +23,5 @@ coverage/
 # Terraform: valores locales, nunca versionados
 *.tfvars
 !*.tfvars.example
+
+.vscode/

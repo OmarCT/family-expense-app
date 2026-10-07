@@ -4,7 +4,7 @@ Marca cada punto solo cuando sus pruebas pasan en CI. Plan detallado: `docs/spec
 
 ## Slice 0 — Foundations (S) ← activo
 - [x] Monorepo, pnpm workspaces, Poetry en `services/core` y `services/workers`
-- [ ] CI: lint, tipos, tests en ambos lenguajes, contrato, vectores compartidos, imágenes en merge
+- [x] CI: lint, tipos, tests en ambos lenguajes, contrato, vectores compartidos, imágenes en merge
 - [ ] Entornos local / staging / prod en Terraform
 - [ ] Auth0: tenant dev y prod (email code, Google, Apple)
 - [x] OpenAPI `/v1`: error único, client ID, revisión base; cliente TS generado
