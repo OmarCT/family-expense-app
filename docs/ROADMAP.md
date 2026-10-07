@@ -42,6 +42,6 @@ Marca cada punto solo cuando sus pruebas pasan en CI. Plan detallado: `docs/spec
 
 ## Pendientes de decisión
 - [ ] Horas semanales disponibles (para convertir tallas S/M/L en fechas)
-- [ ] Función hash exacta del desempate de largest remainder (ADR-0002)
+- [x] Función hash del desempate de largest remainder: SHA-256 con separador (ADR-0002)
 - [x] Región AWS: us-east-2 (ADR-0007)
 - [x] Cuenta de AWS: una sola para staging y prod por ahora (ADR-0007)
