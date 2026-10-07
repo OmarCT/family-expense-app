@@ -10,7 +10,7 @@ Marca cada punto solo cuando sus pruebas pasan en CI. Plan detallado: `docs/spec
 - [x] OpenAPI `/v1`: error único, client ID, revisión base; cliente TS generado
 - [x] i18n con claves, `es-MX`
 - [x] Alembic + sobre de evento con `schema_version`
-- [ ] Observabilidad base (logs estructurados, OTel, sin PII)
+- [x] Observabilidad base (logs estructurados, OTel, sin PII)
 - **Salida:** usuario firmado llama `/v1` desde ambos shells; deploy a staging por CI; un vector incorrecto rompe el build
 
 ## Slice 1 — Money correctness (L)
