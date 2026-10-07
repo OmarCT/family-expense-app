@@ -26,9 +26,26 @@ variable "aws_region" {
   default = "us-east-2"
 }
 
+variable "github_owner" {
+  type    = string
+  default = "OmarCT"
+}
+
 variable "github_repository" {
   type    = string
-  default = "OmarCT/family-expense-app"
+  default = "family-expense-app"
+}
+
+# GitHub incluye estos IDs en el claim `sub` del token OIDC; fijarlos evita que otro
+# repositorio con el mismo nombre (o uno recreado) asuma el rol.
+variable "github_owner_id" {
+  type    = string
+  default = "18475300"
+}
+
+variable "github_repository_id" {
+  type    = string
+  default = "1407649234"
 }
 
 provider "aws" {
@@ -97,7 +114,7 @@ data "aws_iam_policy_document" "ci_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repository}:ref:refs/heads/main"]
+      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:ref:refs/heads/main"]
     }
   }
 }
