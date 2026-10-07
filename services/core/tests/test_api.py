@@ -6,6 +6,9 @@ import jwt
 import yaml
 from fastapi.testclient import TestClient
 
+from fea_core.config import Settings
+from fea_core.main import create_app
+
 CONTRACT = Path(__file__).resolve().parents[3] / "contracts" / "openapi.yaml"
 
 
@@ -98,3 +101,38 @@ def test_app_matches_the_openapi_contract(client: TestClient) -> None:
         for method, op in item.items()
     }
     assert actual == expected
+
+
+def test_spans_carry_correlation_id_and_no_personal_data(
+    settings: Settings, make_token: Callable[..., str]
+) -> None:
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
+
+    from fea_core.telemetry import build_providers
+
+    exporter = InMemorySpanExporter()
+    tracer_provider, meter_provider = build_providers("fea-core-test", "test")
+    tracer_provider.add_span_processor(SimpleSpanProcessor(exporter))
+    app = create_app(
+        settings,
+        configure_observability=False,
+        tracer_provider=tracer_provider,
+        meter_provider=meter_provider,
+    )
+    token = make_token()
+    given = "6f1c1d0e-5b8a-4c8e-9a52-0d3a9d3c2b11"
+    TestClient(app).get(
+        "/v1/me?email=ana@example.com",
+        headers={**bearer(token), "X-Correlation-Id": given},
+    )
+    TestClient(app).get("/v1/health")
+
+    spans = exporter.get_finished_spans()
+    dump = " ".join(str(s.attributes) for s in spans)
+    server_spans = [s for s in spans if s.attributes and "correlation_id" in s.attributes]
+    assert [s.attributes["correlation_id"] for s in server_spans if s.attributes] == [given]
+    assert [s.attributes["url.query"] for s in server_spans if s.attributes] == ["[redacted]"]
+    for secret in (token, "ana", "example.com"):
+        assert secret not in dump
+    assert "/v1/health" not in dump

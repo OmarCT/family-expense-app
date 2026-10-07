@@ -5,6 +5,9 @@ from uuid import UUID, uuid4
 import structlog
 from fastapi import APIRouter, Depends, FastAPI, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from opentelemetry import trace
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.trace import TracerProvider
 
 from fea_core.auth import (
     Auth0TokenVerifier,
@@ -16,7 +19,7 @@ from fea_core.auth import (
 from fea_core.config import Settings
 from fea_core.errors import ApiError, register_error_handlers
 from fea_core.logging_setup import configure_logging
-from fea_core.telemetry import configure_tracing
+from fea_core.telemetry import configure_tracing, telemetry_config
 
 DEFAULT_LOCALE = "es-MX"
 CORRELATION_HEADER = "X-Correlation-Id"
@@ -65,13 +68,19 @@ def create_app(
     settings: Settings | None = None,
     verifier: TokenVerifier | None = None,
     configure_observability: bool = True,
+    tracer_provider: TracerProvider | None = None,
+    meter_provider: MeterProvider | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     if configure_observability:
         configure_logging(settings.log_level)
-        configure_tracing("fea-core", settings.environment)
+        tracer_provider, meter_provider = configure_tracing("fea-core", settings.environment)
 
-    app = FastAPI(title="Family Expense API", version="1.0.0")
+    app = FastAPI(
+        title="Family Expense API",
+        version="1.0.0",
+        telemetry=telemetry_config(tracer_provider, meter_provider),
+    )
     app.state.verifier = verifier or Auth0TokenVerifier(
         settings.issuer, settings.auth0_audience, settings.jwks_url
     )
@@ -83,6 +92,7 @@ def create_app(
         request.state.correlation_id = correlation_id
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
+        trace.get_current_span().set_attribute("correlation_id", correlation_id)
         started = time.perf_counter()
         response: Response = await call_next(request)
         response.headers[CORRELATION_HEADER] = correlation_id
