@@ -82,7 +82,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-        with: { terraform_version: "1.9.8" }
+        with: { terraform_version: "1.10.5" }
       - run: terraform fmt -check -recursive ../..
       - run: terraform init -backend=false -input=false
       - run: terraform validate
+  terraform-bootstrap:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: infra/bootstrap } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.10.5" }
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+  images:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir imagen de core
+        run: docker build -t fea-core:${{ github.sha }} services/core
+      - name: Publicar en ECR (solo en main y si hay rol configurado)
+        if: github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        if: github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Subir imagen
+        if: github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+        run: |
+          image="${{ steps.ecr.outputs.registry }}/fea-staging/core:${{ github.sha }}"
+          docker tag fea-core:${{ github.sha }} "$image"
+          docker push "$image"
