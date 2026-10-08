@@ -1,1 +1,4 @@
 aws_account_id = "000000000000"
+
+# Habilita la promoción a producción (lectura entre cuentas del ECR):
+# prod_account_id = "000000000000"

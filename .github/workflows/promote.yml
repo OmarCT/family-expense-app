@@ -1,0 +1,61 @@
+name: promote
+# Copia a producción una imagen que ya está en el ECR de staging. Solo se lanza a mano y el
+# entorno "production" de GitHub exige aprobación. Nada llega a producción por un merge.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: SHA completo (40 caracteres) del commit cuya imagen ya está en staging
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SHA: ${{ inputs.sha }}
+      AWS_REGION: ${{ vars.AWS_REGION || 'us-east-2' }}
+    steps:
+      - name: Validar el SHA
+        run: |
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA inválido"; exit 1; }
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - name: El commit está en main
+        run: git merge-base --is-ancestor "$SHA" origin/main
+      - name: El CI de ese commit terminó en success
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh run list --workflow ci.yml --commit "$SHA" --json conclusion \
+            --jq '[.[] | select(.conclusion != "")][0].conclusion')
+          [ "$conclusion" = "success" ] || { echo "::error::El CI de $SHA no terminó en success ('$conclusion')"; exit 1; }
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+        with:
+          registries: ${{ vars.STAGING_ACCOUNT_ID }},${{ vars.PROD_ACCOUNT_ID }}
+      - name: Copiar la imagen de staging a producción
+        env:
+          SRC: ${{ vars.STAGING_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION || 'us-east-2' }}.amazonaws.com/fea-staging/core
+          DST: ${{ vars.PROD_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION || 'us-east-2' }}.amazonaws.com/fea-prod/core
+        run: |
+          if aws ecr describe-images --repository-name fea-prod/core --image-ids imageTag="$SHA" >/dev/null 2>&1; then
+            echo "::notice::fea-prod/core:$SHA ya existe; las etiquetas son inmutables, no se vuelve a subir."
+            exit 0
+          fi
+          docker pull "$SRC:$SHA"
+          docker tag "$SRC:$SHA" "$DST:$SHA"
+          docker push "$DST:$SHA"

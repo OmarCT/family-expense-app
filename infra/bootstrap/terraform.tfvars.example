@@ -1,1 +1,5 @@
 aws_account_id = "000000000000"
+
+# Solo en la cuenta de producción:
+# environment        = "prod"
+# staging_account_id = "000000000000"

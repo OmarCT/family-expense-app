@@ -23,6 +23,17 @@ variable "aws_account_id" {
   }
 }
 
+variable "prod_account_id" {
+  type        = string
+  default     = ""
+  description = "Cuenta de producción autorizada a leer las imágenes para promoverlas. Vacío: nadie."
+
+  validation {
+    condition     = var.prod_account_id == "" || can(regex("^[0-9]{12}$", var.prod_account_id))
+    error_message = "prod_account_id debe estar vacío o tener 12 dígitos."
+  }
+}
+
 variable "aws_region" {
   type    = string
   default = "us-east-2"
@@ -45,6 +56,8 @@ module "ecr" {
   source       = "../../modules/ecr"
   name_prefix  = "fea-staging"
   repositories = ["core", "workers"]
+
+  pull_account_ids = var.prod_account_id == "" ? [] : [var.prod_account_id]
 }
 
 output "ecr_repository_urls" {

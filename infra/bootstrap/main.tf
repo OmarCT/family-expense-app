@@ -1,5 +1,10 @@
-# Se aplica una sola vez, a mano, con credenciales de administrador. Su estado es local
-# (no hay bucket todavía); guarda terraform.tfstate fuera del repo o impórtalo después.
+# Se aplica una sola vez por cuenta, a mano, con credenciales de administrador, usando el
+# perfil de esa cuenta. El estado es local (no hay bucket antes de aplicarlo): usa un archivo
+# de estado distinto por cuenta (-state) y guárdalos fuera del repo.
+#
+# environment = "staging": rol fea-ci-images, asumible desde la rama main, empuja a fea-staging/*.
+# environment = "prod": rol fea-ci-promote, asumible solo desde el entorno "production" de GitHub;
+#   empuja a fea-prod/* y lee fea-staging/* de la cuenta de staging (promoción de imágenes).
 terraform {
   required_version = ">= 1.10"
 
@@ -19,6 +24,22 @@ variable "aws_account_id" {
     condition     = can(regex("^[0-9]{12}$", var.aws_account_id))
     error_message = "aws_account_id debe tener 12 dígitos."
   }
+}
+
+variable "environment" {
+  type    = string
+  default = "staging"
+
+  validation {
+    condition     = contains(["staging", "prod"], var.environment)
+    error_message = "environment debe ser staging o prod."
+  }
+}
+
+# Solo para environment = "prod": cuenta de staging de la que se promueven las imágenes.
+variable "staging_account_id" {
+  type    = string
+  default = ""
 }
 
 variable "aws_region" {
@@ -46,6 +67,14 @@ variable "github_owner_id" {
 variable "github_repository_id" {
   type    = string
   default = "1407649234"
+}
+
+locals {
+  is_prod      = var.environment == "prod"
+  github_repo  = "repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}"
+  oidc_subject = local.is_prod ? "${local.github_repo}:environment:production" : "${local.github_repo}:ref:refs/heads/main"
+  role_name    = local.is_prod ? "fea-ci-promote" : "fea-ci-images"
+  policy_name  = local.is_prod ? "promote-images" : "push-staging-images"
 }
 
 provider "aws" {
@@ -114,14 +143,21 @@ data "aws_iam_policy_document" "ci_assume" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_owner}@${var.github_owner_id}/${var.github_repository}@${var.github_repository_id}:ref:refs/heads/main"]
+      values   = [local.oidc_subject]
     }
   }
 }
 
 resource "aws_iam_role" "ci_images" {
-  name               = "fea-ci-images"
+  name               = local.role_name
   assume_role_policy = data.aws_iam_policy_document.ci_assume.json
+
+  lifecycle {
+    precondition {
+      condition     = !local.is_prod || can(regex("^[0-9]{12}$", var.staging_account_id))
+      error_message = "Con environment = prod hace falta staging_account_id (12 dígitos)."
+    }
+  }
 }
 
 data "aws_iam_policy_document" "ci_images" {
@@ -139,12 +175,25 @@ data "aws_iam_policy_document" "ci_images" {
       "ecr:PutImage",
       "ecr:UploadLayerPart",
     ]
-    resources = ["arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/fea-staging/*"]
+    resources = ["arn:aws:ecr:${var.aws_region}:${var.aws_account_id}:repository/fea-${var.environment}/*"]
+  }
+
+  dynamic "statement" {
+    for_each = local.is_prod ? [1] : []
+
+    content {
+      actions = [
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:BatchGetImage",
+        "ecr:GetDownloadUrlForLayer",
+      ]
+      resources = ["arn:aws:ecr:${var.aws_region}:${var.staging_account_id}:repository/fea-staging/*"]
+    }
   }
 }
 
 resource "aws_iam_role_policy" "ci_images" {
-  name   = "push-staging-images"
+  name   = local.policy_name
   role   = aws_iam_role.ci_images.id
   policy = data.aws_iam_policy_document.ci_images.json
 }
@@ -153,6 +202,11 @@ output "tfstate_bucket" {
   value = aws_s3_bucket.tfstate.bucket
 }
 
+output "ci_role_arn" {
+  value = aws_iam_role.ci_images.arn
+}
+
+# Alias del anterior: en staging es el rol de publicación; en prod, el de promoción.
 output "ci_images_role_arn" {
   value = aws_iam_role.ci_images.arn
 }
