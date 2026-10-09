@@ -17,8 +17,8 @@ El repo es público: el ID de la cuenta, el bucket de estado y cualquier credenc
 ## Bootstrap (una sola vez, a mano)
 `infra/bootstrap` crea el bucket de estado (versionado, cifrado, sin acceso público), el proveedor OIDC de GitHub y un rol de CI. En staging (el valor por defecto) es `fea-ci-images`: solo puede subir imágenes a `fea-staging/*` y solo desde la rama `main`. En producción (`environment = "prod"`) es `fea-ci-promote`; ver la sección siguiente.
 
-1. `cd infra/bootstrap && cp terraform.tfvars.example terraform.tfvars` y escribe el ID de cuenta.
-2. Con credenciales de administrador: `terraform init && terraform apply`. Su estado es local; guárdalo fuera del repo.
+1. `cd infra/bootstrap && cp terraform.tfvars.example staging.tfvars` y escribe el ID de la cuenta de staging. Cada entorno usa su propio archivo (`staging.tfvars`, `prod.tfvars`); no uses `terraform.tfvars`.
+2. Con el perfil SSO de la cuenta: `./run.sh staging init && ./run.sh staging apply`. Su estado es local; guárdalo fuera del repo.
 3. En GitHub, Settings → Secrets and variables → Actions → Variables: `AWS_ROLE_ARN` con el output `ci_images_role_arn` (y `AWS_REGION` si no es `us-east-2`). Mientras `AWS_ROLE_ARN` no exista, el job `images` solo construye la imagen y no publica.
 4. Para cada entorno: `terraform init -backend-config="bucket=<tfstate_bucket>" -backend-config="key=<env>/terraform.tfstate" -backend-config="region=us-east-2" -backend-config="use_lockfile=true"` (requiere Terraform 1.10 o superior) y `terraform apply` para crear los repositorios ECR.
 
@@ -27,19 +27,19 @@ Producción no recibe nada de un merge. Staging publica `fea-staging/core:<sha>`
 
 Orden de puesta en marcha (todo a mano, con el perfil SSO de cada cuenta; los `.tfvars` y los estados están ignorados por git):
 
-1. **Bootstrap de producción** (`fea-prod`). Usa un archivo de estado propio: el predeterminado es el de staging.
+1. **Bootstrap de producción** (`fea-prod`). Usa siempre `./run.sh`: fija juntos el perfil, el archivo de variables y el archivo de estado de un solo entorno y se niega si no cuadran. No ejecutes `terraform` a mano aquí: con credenciales de una cuenta y el estado de otra, Terraform puede dar por borrados los recursos de la otra cuenta y sobrescribir su estado.
    ```bash
-   export AWS_PROFILE=fea-prod AWS_REGION=us-east-2
    cd infra/bootstrap
    printf 'aws_account_id     = "<id de prod>"\nenvironment        = "prod"\nstaging_account_id = "<id de staging>"\n' > prod.tfvars
-   terraform init
-   terraform plan  -state=terraform.prod.tfstate -var-file=prod.tfvars
-   terraform apply -state=terraform.prod.tfstate -var-file=prod.tfvars
+   ./run.sh prod init
+   ./run.sh prod plan
+   ./run.sh prod apply
    ```
+   El estado de producción queda en `terraform.prod.tfstate` (el de staging es `terraform.tfstate`); ambos están ignorados por git, haz copia de los dos.
    El bootstrap crea el bucket de estado **en `us-east-2`**. Antes de aplicar, comprueba que no exista ya uno con ese nombre creado a mano: `aws s3api get-bucket-location --bucket fea-tfstate-<id de prod>` (`None` significa `us-east-1`). La CLI crea los buckets en la región del perfil, y los perfiles SSO de este proyecto tienen `us-east-1` por defecto.
    - Si no existe, el `apply` de arriba lo crea.
    - Si existe en `us-east-1` y está vacío, bórralo y aplica: `aws s3api delete-bucket --bucket fea-tfstate-<id de prod> --region us-east-1 --profile fea-prod`. Un bucket de otra región no se puede importar ni reutilizar con `region = "us-east-2"`.
-   - Si existe en `us-east-2`, impórtalo antes del `plan`: `for r in aws_s3_bucket.tfstate aws_s3_bucket_versioning.tfstate aws_s3_bucket_server_side_encryption_configuration.tfstate aws_s3_bucket_public_access_block.tfstate; do terraform import -state=terraform.prod.tfstate -var-file=prod.tfvars "$r" fea-tfstate-<id de prod>; done`.
+   - Si existe en `us-east-2`, impórtalo antes del `plan`: `for r in aws_s3_bucket.tfstate aws_s3_bucket_versioning.tfstate aws_s3_bucket_server_side_encryption_configuration.tfstate aws_s3_bucket_public_access_block.tfstate; do ./run.sh prod import "$r" fea-tfstate-<id de prod>; done`.
 
    Anota el output `ci_role_arn`. Conviene fijar la región de los perfiles: `aws configure set region us-east-2 --profile fea-prod` (y lo mismo con `fea-staging`).
 2. **Staging: permitir la lectura de producción.** En `envs/staging/terraform.tfvars` añade `prod_account_id = "<id de prod>"` y aplica con `AWS_PROFILE=fea-staging` (crea las políticas de repositorio).
