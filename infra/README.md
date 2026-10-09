@@ -33,15 +33,15 @@ Orden de puesta en marcha (todo a mano, con el perfil SSO de cada cuenta; los `.
    cd infra/bootstrap
    printf 'aws_account_id     = "<id de prod>"\nenvironment        = "prod"\nstaging_account_id = "<id de staging>"\n' > prod.tfvars
    terraform init
-   for r in aws_s3_bucket.tfstate aws_s3_bucket_versioning.tfstate \
-            aws_s3_bucket_server_side_encryption_configuration.tfstate \
-            aws_s3_bucket_public_access_block.tfstate; do
-     terraform import -state=terraform.prod.tfstate -var-file=prod.tfvars "$r" fea-tfstate-<id de prod>
-   done
    terraform plan  -state=terraform.prod.tfstate -var-file=prod.tfvars
    terraform apply -state=terraform.prod.tfstate -var-file=prod.tfvars
    ```
-   El bucket ya existe, por eso se importa. Anota el output `ci_role_arn`.
+   El bootstrap crea el bucket de estado **en `us-east-2`**. Antes de aplicar, comprueba que no exista ya uno con ese nombre creado a mano: `aws s3api get-bucket-location --bucket fea-tfstate-<id de prod>` (`None` significa `us-east-1`). La CLI crea los buckets en la región del perfil, y los perfiles SSO de este proyecto tienen `us-east-1` por defecto.
+   - Si no existe, el `apply` de arriba lo crea.
+   - Si existe en `us-east-1` y está vacío, bórralo y aplica: `aws s3api delete-bucket --bucket fea-tfstate-<id de prod> --region us-east-1 --profile fea-prod`. Un bucket de otra región no se puede importar ni reutilizar con `region = "us-east-2"`.
+   - Si existe en `us-east-2`, impórtalo antes del `plan`: `for r in aws_s3_bucket.tfstate aws_s3_bucket_versioning.tfstate aws_s3_bucket_server_side_encryption_configuration.tfstate aws_s3_bucket_public_access_block.tfstate; do terraform import -state=terraform.prod.tfstate -var-file=prod.tfvars "$r" fea-tfstate-<id de prod>; done`.
+
+   Anota el output `ci_role_arn`. Conviene fijar la región de los perfiles: `aws configure set region us-east-2 --profile fea-prod` (y lo mismo con `fea-staging`).
 2. **Staging: permitir la lectura de producción.** En `envs/staging/terraform.tfvars` añade `prod_account_id = "<id de prod>"` y aplica con `AWS_PROFILE=fea-staging` (crea las políticas de repositorio).
 3. **Producción: repositorios.** En `envs/prod` copia `terraform.tfvars.example`, pon el ID de prod, `terraform init -backend-config="bucket=fea-tfstate-<id de prod>" -backend-config="key=prod/terraform.tfstate" -backend-config="region=us-east-2" -backend-config="use_lockfile=true"` y `terraform apply` con `AWS_PROFILE=fea-prod`.
 4. **GitHub.** Settings → Environments → `production`: *Required reviewers* (tú) y *Deployment branches* limitado a `main` (sin esto, otra rama podría lanzar una versión modificada del workflow). En las variables del entorno: `PROD_ROLE_ARN` (el `ci_role_arn` del paso 1), `PROD_ACCOUNT_ID` y `STAGING_ACCOUNT_ID`.
