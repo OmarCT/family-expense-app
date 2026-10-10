@@ -1,6 +1,6 @@
 # infra (Terraform, AWS)
 
-Región `us-east-2`. Estructura: `modules/` (hoy solo `ecr`; previstos network, ecs-service, rds, queue, bucket, secrets) y `envs/staging`, `envs/prod`. Estado remoto en S3 con bloqueo. `terraform apply` solo desde CI con aprobación (ver ADR-0007).
+Región `us-east-2`. Estructura: `modules/` (hoy `ecr`, `network` y `rds`; previstos ecs-service, queue, bucket, secrets) y `envs/staging`, `envs/prod`. Estado remoto en S3 con bloqueo. `terraform apply` solo desde CI con aprobación (ver ADR-0007).
 
 ## Cuentas
 Staging y producción viven en cuentas AWS distintas (ADR-0007), con acceso SSO. Usa siempre el perfil del entorno: `export AWS_PROFILE=fea-staging` o `fea-prod` (inicia sesión con `aws sso login --profile ...`). El proveedor usa `allowed_account_ids`, así que aplicar `envs/prod` con el perfil de staging falla en lugar de crear recursos en la cuenta equivocada.
@@ -10,6 +10,20 @@ El repo es público: el ID de la cuenta, el bucket de estado y cualquier credenc
 
 - `aws_account_id`: el de la cuenta de ese entorno (no el de la otra). Copia `envs/<env>/terraform.tfvars.example` a `terraform.tfvars` (ignorado por git) o pásalo como variable de CI. El proveedor usa `allowed_account_ids`, así que un `plan` contra otra cuenta falla.
 - Backend: `terraform init -backend-config="bucket=..." -backend-config="key=<env>/terraform.tfstate" -backend-config="region=us-east-2" -backend-config="use_lockfile=true"`.
+
+## Red y base de datos de staging
+`modules/network` y `modules/rds` (ver ADR-0012), conectados en `envs/staging`. El `plan` real contra la cuenta de staging da **24 a crear, 0 cambios, 0 destrucciones**. Coste fijo aproximado: **unos 14 USD al mes** (instancia `db.t4g.micro` a 0,016 USD/h más 20 GB de gp3 a 0,115 USD/GB-mes, según la API de precios de AWS en `us-east-2`); no hay NAT.
+
+```bash
+cd infra/envs/staging && export AWS_PROFILE=fea-staging
+terraform plan    # Plan: 24 to add, 0 to change, 0 to destroy
+terraform apply   # la base tarda unos 10 minutos
+terraform output core_database   # endpoint, puerto, nombre y ARN del secreto del administrador
+```
+
+La base es privada: no hay forma de conectar desde fuera de la VPC (tampoco desde tu equipo) hasta que existan las tareas de ECS. La contraseña del administrador está solo en el secreto de Secrets Manager.
+
+Análisis estático (`trivy config`): quedan avisos que se aceptan a propósito en staging: salida TCP 443 a `0.0.0.0/0` (Auth0 y las APIs de AWS no tienen IP fija), protección contra borrado desactivada, autenticación IAM de la base no usada, cifrado con claves administradas por AWS en lugar de CMK, y sin registros de flujo de la VPC. Revisar antes de producción.
 
 ## Validar sin credenciales
 `terraform init -backend=false && terraform validate` en cada entorno; CI lo corre en el job `terraform`.

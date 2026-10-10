@@ -63,3 +63,38 @@ module "ecr" {
 output "ecr_repository_urls" {
   value = module.ecr.repository_urls
 }
+
+module "network" {
+  source   = "../../modules/network"
+  name     = "fea-staging"
+  vpc_cidr = "10.10.0.0/16"
+  nat_mode = "none"
+}
+
+module "rds_core" {
+  source = "../../modules/rds"
+  name   = "fea-staging-core"
+
+  vpc_id                    = module.network.vpc_id
+  subnet_ids                = module.network.private_subnet_ids
+  client_security_group_ids = [module.network.app_security_group_id]
+
+  deletion_protection = false
+}
+
+output "network" {
+  value = {
+    vpc_id             = module.network.vpc_id
+    private_subnet_ids = module.network.private_subnet_ids
+    public_subnet_ids  = module.network.public_subnet_ids
+  }
+}
+
+output "core_database" {
+  value = {
+    endpoint          = module.rds_core.endpoint
+    port              = module.rds_core.port
+    database_name     = module.rds_core.database_name
+    master_secret_arn = module.rds_core.master_secret_arn
+  }
+}
