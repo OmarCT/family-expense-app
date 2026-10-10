@@ -29,6 +29,26 @@ jobs:
       - name: Validar el SHA
         run: |
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::SHA inválido"; exit 1; }
+      - name: Comprobar las variables del entorno production
+        env:
+          PROD_ROLE_ARN: ${{ vars.PROD_ROLE_ARN }}
+          PROD_ACCOUNT_ID: ${{ vars.PROD_ACCOUNT_ID }}
+          STAGING_ACCOUNT_ID: ${{ vars.STAGING_ACCOUNT_ID }}
+        run: |
+          missing=""
+          for name in PROD_ROLE_ARN PROD_ACCOUNT_ID STAGING_ACCOUNT_ID; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Faltan en el entorno production:$missing. Deben ser Variables (no Secrets): Settings > Environments > production > Environment variables."
+            exit 1
+          fi
+          [[ "$PROD_ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/fea-ci-promote$ ]] \
+            || { echo "::error::PROD_ROLE_ARN no tiene la forma arn:aws:iam::<12 dígitos>:role/fea-ci-promote (¿espacios o saltos de línea sobrantes?)"; exit 1; }
+          [[ "$PROD_ACCOUNT_ID" =~ ^[0-9]{12}$ && "$STAGING_ACCOUNT_ID" =~ ^[0-9]{12}$ ]] \
+            || { echo "::error::PROD_ACCOUNT_ID y STAGING_ACCOUNT_ID deben tener exactamente 12 dígitos"; exit 1; }
+          [[ "$PROD_ROLE_ARN" == *":${PROD_ACCOUNT_ID}:role/"* ]] \
+            || { echo "::error::PROD_ROLE_ARN no pertenece a la cuenta PROD_ACCOUNT_ID"; exit 1; }
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - name: El commit está en main
